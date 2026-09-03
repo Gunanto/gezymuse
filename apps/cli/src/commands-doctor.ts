@@ -675,7 +675,9 @@ export function residentDaemonRuntimeCheck(
     : observation.health.status === "failed" ? "fail" : "warn";
   const detail = status === "ok"
     ? "LaunchAgent, live definition, process identity, heartbeat, terminal state, and orphan-process probe are healthy"
-    : `resident health ${observation.health.status}: ${observation.health.reasonCodes
+    : observation.health.status === "not-installed"
+      ? "not installed (opt-in) — run `muse daemon --install` to let Muse work in the background; nothing is broken"
+      : `resident health ${observation.health.status}: ${observation.health.reasonCodes
       .map((reason) => describeResidentDaemonHealthReason(reason, observation))
       .join(", ")}${observation.health.terminalFailure
         ? `; last terminal=${observation.health.terminalFailure.reasonCode} after ${observation.health.terminalFailure.lastStablePoint} (${observation.health.terminalFailure.diagnosticRef})`

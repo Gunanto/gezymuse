@@ -496,6 +496,24 @@ describe("resident daemon truth", () => {
     expect(check.detail).not.toContain("pid");
   });
 
+  it("reports a never-installed opt-in daemon as a warning with the install command", () => {
+    const check = residentDaemonRuntimeCheck(residentRuntime({
+      artifact: "missing",
+      health: {
+        reasonCodes: ["daemon-artifact-missing", "daemon-not-registered", "daemon-heartbeat-missing"],
+        status: "not-installed"
+      },
+      heartbeat: "missing",
+      runtime: "not-registered"
+    }));
+
+    expect(check.status).toBe("warn");
+    expect(check.detail).toContain("not installed");
+    expect(check.detail).toContain("muse daemon --install");
+    expect(check.detail).not.toContain("resident health");
+    expect(check.detail).not.toContain("mismatch");
+  });
+
   it("surfaces only the redacted terminal reason, stable point, and diagnostic link", () => {
     const check = residentDaemonRuntimeCheck(residentRuntime({
       health: {

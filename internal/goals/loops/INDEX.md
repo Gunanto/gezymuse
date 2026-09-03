@@ -43,4 +43,5 @@
 | `secret-source` | SecretSource redaction/masking hardening | journal deleted 2026-07-18 (git history) | — | — | v1.x | closed (2026-06-30) — red-team round 2 PASS |
 
 | `builder-evolution` | continuous improvement of the Builder/automation track + finding felt capability gaps (worktree `/tmp/muse-builder-evolution`, Tier2+ Jinan-approved main push) | [builder-evolution.md](builder-evolution.md) | 20 | `969e5d6a7` | v2.1.1 | **stopped** (2026-07-18 Jinan directive, 20 fires — cron 097e9e4f deleted) |
+| `experience-acp` | user-perspective UX (priority #1) · ACP (Agent Client Protocol) quality · code/architecture review (worktree `/tmp/muse-experience-acp`, branch `loop/experience-acp-f<N>`, Tier2+ owner-approved main push) | [experience-acp.md](experience-acp.md) | 1 | (this commit) | v3.x | active (cron `d0ae5922`, session-only 20m) |
 <!-- New loops: add a row here on first registration; update your own row's last-fire/commit each fire. -->

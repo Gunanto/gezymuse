@@ -284,7 +284,7 @@ export type ResidentDaemonHealthReasonCode =
   (typeof RESIDENT_DAEMON_HEALTH_REASON)[keyof typeof RESIDENT_DAEMON_HEALTH_REASON];
 
 export interface ResidentDaemonHealthResult {
-  readonly status: "healthy" | "failed" | "unverified";
+  readonly status: "healthy" | "not-installed" | "failed" | "unverified";
   readonly reasonCodes: readonly ResidentDaemonHealthReasonCode[];
   readonly restart?: ResidentDaemonRestartObservation;
   readonly terminalFailure?: ResidentDaemonTerminalFailureSummary;
@@ -300,6 +300,34 @@ const TERMINAL_FAILURE_HEALTH_REASON: Readonly<Record<
   "store-corrupt": RESIDENT_DAEMON_HEALTH_REASON.terminalStoreCorrupt,
   "uncaught-exception": RESIDENT_DAEMON_HEALTH_REASON.terminalUncaughtException
 };
+
+/**
+ * True only when EVERY installation signal is positively observed absent — no
+ * artifact, nothing registered, and heartbeat/terminal/restart state each probed
+ * and found missing, with both the autostart and process probes reporting "ok".
+ * Every field must be PRESENT and say "absent": an observation that merely omits
+ * one proves nothing, and a partial or damaged install fails at least one
+ * conjunct, so neither can be reported as "never installed".
+ */
+export function isResidentDaemonAbsent(
+  observation: ResidentDaemonObservation,
+  inventory: ResidentMuseProcessInventory
+): boolean {
+  return observation.artifact === "missing"
+    && observation.runtime === "not-registered"
+    && observation.heartbeat === "missing"
+    && observation.terminal?.state === "missing"
+    && observation.restart?.state === "missing"
+    && observation.autostartProbe === "ok"
+    && observation.orphanProbe === "ok"
+    && observation.orphanRootCount === 0
+    && observation.orphanProcessCount === 0
+    && inventory.probe === "ok"
+    && inventory.processes.length === 0
+    && inventory.museProcessCount === 0
+    && inventory.residentProcessCount === 0
+    && inventory.duplicateResidentProcessCount === 0;
+}
 
 /** One fail-close resident truth shared by CLI status, Doctor, and qualification. */
 export function classifyResidentDaemonHealth(
@@ -396,9 +424,12 @@ export function classifyResidentDaemonHealth(
   }
 
   const reasonCodes = [...new Set([...failed, ...unverified])];
+  const absent = failed.length > 0 && isResidentDaemonAbsent(observation, inventory);
   return {
     reasonCodes,
-    status: failed.length > 0 ? "failed" : unverified.length > 0 ? "unverified" : "healthy",
+    status: absent
+      ? "not-installed"
+      : failed.length > 0 ? "failed" : unverified.length > 0 ? "unverified" : "healthy",
     ...(restart && restart.state !== "closed" ? { restart } : {}),
     ...(terminal?.state === "failed" ? { terminalFailure: terminal.failure } : {})
   };

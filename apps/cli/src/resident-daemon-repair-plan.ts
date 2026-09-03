@@ -187,7 +187,8 @@ function planBody(plan: Omit<ResidentDaemonRepairPlan, "planHash">): string {
 
 function repairStartsFromAbsence(snapshot: ResidentDaemonRepairSnapshot): boolean {
   if (snapshot.processes.length > 0) return false;
-  const sharedAbsenceConfirmed = snapshot.health.status === "failed"
+  const sharedAbsenceConfirmed = (snapshot.health.status === "failed"
+    || snapshot.health.status === "not-installed")
     && snapshot.health.reasonCodes.includes("daemon-artifact-missing")
     && snapshot.health.reasonCodes.includes("daemon-not-registered");
   if (!sharedAbsenceConfirmed) return false;

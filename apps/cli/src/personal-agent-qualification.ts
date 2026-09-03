@@ -629,7 +629,9 @@ function assessRuntime(observation: RuntimeQualificationObservation): Qualificat
     required: true,
     status: observation.health.status === "healthy"
       ? "passed"
-      : observation.health.status === "failed" ? "failed" : "unverified"
+      : observation.health.status === "failed" || observation.health.status === "not-installed"
+        ? "failed"
+        : "unverified"
   };
 }
 

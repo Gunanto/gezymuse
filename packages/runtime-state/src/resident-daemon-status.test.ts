@@ -20,11 +20,14 @@ import {
 import {
   classifyResidentDaemonHealth,
   inspectResidentDaemon,
+  isResidentDaemonAbsent,
   parseResidentDaemonHeartbeatReceipt,
   parseResidentWriterLeaseIdentity,
   validateStableMuseCliEntry,
   validateStableMuseRuntimeExecutable,
-  type ReadOnlyProcessRunner
+  type ReadOnlyProcessRunner,
+  type ResidentDaemonObservation,
+  type ResidentMuseProcessInventory
 } from "./resident-daemon-status.js";
 
 const NOW = new Date("2026-07-22T03:00:00.000Z");
@@ -1373,5 +1376,119 @@ describe("resident daemon read-only authority", () => {
       residentProcessCount: 1
     });
     expect(result.processInventory.processes[0]?.matchesLaunchdPid).toBe(false);
+  });
+});
+
+describe("never-installed resident daemon is distinguished from a broken one", () => {
+  const absentObservation = (
+    overrides: Partial<ResidentDaemonObservation> = {}
+  ): ResidentDaemonObservation => ({
+    artifact: "missing",
+    autostartProbe: "ok",
+    heartbeat: "missing",
+    liveDefinitionMatches: false,
+    liveProbe: "ok",
+    orphanProbe: "ok",
+    orphanProcessCount: 0,
+    orphanRootCount: 0,
+    pidAgreement: false,
+    platform: "darwin",
+    restart: { failureCount: 0, state: "missing" },
+    runtime: "not-registered",
+    stableMuseCommand: true,
+    terminal: { state: "missing" },
+    ...overrides
+  });
+  const emptyInventory = (
+    overrides: Partial<ResidentMuseProcessInventory> = {}
+  ): ResidentMuseProcessInventory => ({
+    conditions: [],
+    duplicateResidentProcessCount: 0,
+    museProcessCount: 0,
+    probe: "ok",
+    processes: [],
+    residentProcessCount: 0,
+    ...overrides
+  });
+
+  it("classifies a machine that never installed the opt-in daemon as not-installed", () => {
+    const health = classifyResidentDaemonHealth(absentObservation(), emptyInventory());
+
+    expect(health.status).toBe("not-installed");
+    expect(health.reasonCodes).toContain("daemon-artifact-missing");
+    expect(health.reasonCodes).toContain("daemon-not-registered");
+  });
+
+  it.each([
+    ["a LaunchAgent artifact exists", { observation: { artifact: "valid" } }],
+    ["the service is registered but dead", { observation: { runtime: "not-running" } }],
+    ["a stale heartbeat was left behind", { observation: { heartbeat: "stale" } }],
+    ["terminal state survives from a previous run", { observation: { terminal: { state: "running" } } }],
+    ["a restart record survives from a previous run", {
+      observation: { restart: { failureCount: 0, state: "closed" } }
+    }],
+    ["orphan API processes are alive", { observation: { orphanProcessCount: 2 } }],
+    ["the heartbeat could not be read at all", { observation: { heartbeat: "unknown" } }],
+    ["the artifact exists but is invalid", { observation: { artifact: "invalid" } }],
+    ["the artifact exists but is stale", { observation: { artifact: "stale" } }],
+    ["the runtime is crash-looping", { observation: { runtime: "crash-looping" } }],
+    ["the launchctl probe returned an unknown runtime", { observation: { runtime: "unknown" } }],
+    ["the orphan probe could not run", { observation: { orphanProbe: "unverified" } }],
+    ["the autostart probe could not run", { observation: { autostartProbe: "unverified" } }],
+    ["terminal state was never probed", { observation: { terminal: undefined } }],
+    ["restart state was never probed", { observation: { restart: undefined } }],
+    ["the process probe could not run", { inventory: { probe: "unverified" } }],
+    ["a resident process is still running", {
+      inventory: {
+        museProcessCount: 1,
+        processes: [{
+          cwd: "/private/runtime",
+          executableRealpath: "/usr/bin/node",
+          matchesLaunchdPid: false,
+          pid: 1,
+          ppid: 0,
+          role: "resident",
+          startedAt: "2026-07-21T00:00:00.000Z"
+        }],
+        residentProcessCount: 1
+      }
+    }]
+  ] as const)("never claims not-installed when %s", (_name, patch) => {
+    const observation = absentObservation(
+      (patch as { observation?: Partial<ResidentDaemonObservation> }).observation ?? {}
+    );
+    const inventory = emptyInventory(
+      (patch as { inventory?: Partial<ResidentMuseProcessInventory> }).inventory ?? {}
+    );
+
+    expect(isResidentDaemonAbsent(observation, inventory)).toBe(false);
+    expect(classifyResidentDaemonHealth(observation, inventory).status).not.toBe("not-installed");
+  });
+
+  it("keeps a fully healthy daemon healthy", () => {
+    const observation = absentObservation({
+      artifact: "valid",
+      heartbeat: "fresh",
+      liveDefinitionMatches: true,
+      pidAgreement: true,
+      restart: { failureCount: 0, state: "closed" },
+      runtime: "running",
+      terminal: { state: "running" }
+    });
+    const inventory = emptyInventory({
+      museProcessCount: 1,
+      processes: [{
+        cwd: "/private/runtime",
+        executableRealpath: "/usr/bin/node",
+        matchesLaunchdPid: true,
+        pid: 1,
+        ppid: 0,
+        role: "resident",
+        startedAt: "2026-07-21T00:00:00.000Z"
+      }],
+      residentProcessCount: 1
+    });
+
+    expect(classifyResidentDaemonHealth(observation, inventory).status).toBe("healthy");
   });
 });
