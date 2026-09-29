@@ -13,6 +13,8 @@ export type ThreadedAgentRun = (input: {
   readonly providerId: string;
   /** Platform-native thread/topic identifier, if the channel has one. */
   readonly threadId?: string;
+  /** Provider-detected explicit bot mention/reply, when available. */
+  readonly addressedToBot?: boolean;
   /** Conversation-scope hint threaded from `InboundMessage.scope` (see `conversation-scope.ts`). */
   readonly scope?: string;
   /** Delegation-ack notify seam, threaded through unmodified — see `InboundAgentRunner`. */
@@ -53,7 +55,7 @@ export function createThreadedInboundRunner(options: {
   readonly store: ThreadedTurnStore;
 }): InboundAgentRunner {
   return {
-    run: async ({ text, source, providerId, scope, threadId, notify }) => {
+    run: async ({ text, source, providerId, scope, threadId, addressedToBot, notify }) => {
       const key = `${providerId}:${source}${threadId ? `:thread:${threadId}` : ""}`;
       const prior = await options.store.read(key);
       const reply = await options.run({
@@ -61,6 +63,7 @@ export function createThreadedInboundRunner(options: {
         providerId,
         source,
         ...(threadId ? { threadId } : {}),
+        ...(addressedToBot !== undefined ? { addressedToBot } : {}),
         ...(scope ? { scope } : {}),
         ...(notify ? { notify } : {})
       });

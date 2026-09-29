@@ -506,6 +506,7 @@ export function buildServer(options: ServerOptions = {}): FastifyInstance {
     registerMessagingSetupRoutes(server, {
       authService,
       integrationEnv,
+      telegramBotUsername: env.MUSE_TELEGRAM_BOT_USERNAME,
       onConnected: (providerId) => {
         if (providerId === "telegram" || providerId === "matrix") {
           ingestStarters[providerId]?.();

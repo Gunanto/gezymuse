@@ -487,6 +487,44 @@ describe("createInboundAgentRun conversation-scope: shared (group) chat safety",
     expect(await ownerFileHasNoOwner(ownersFile, "log")).toBe(true);
   });
 
+  it("allowed Telegram group stays silent unless the bot is mentioned or replied to", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "muse-telegram-trigger-"));
+    const agentCalls: { readonly metadata: { readonly userId: string } }[] = [];
+    const { run } = buildScoped(dir, agentCalls, {
+      MUSE_CHANNEL_ALLOWED_CHATS: "telegram:-100999",
+      MUSE_CHANNEL_GROUP_ENABLED: "true"
+    });
+
+    const ignored = await run({
+      addressedToBot: false,
+      messages: [{ content: "ordinary group chatter", role: "user" }],
+      providerId: "telegram",
+      scope: "shared",
+      source: "-100999"
+    });
+    expect(ignored).toBe("");
+    expect(agentCalls).toHaveLength(0);
+  });
+
+  it("allowed Telegram group runs when the bot is explicitly addressed", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "muse-telegram-trigger-"));
+    const agentCalls: { readonly metadata: { readonly userId: string } }[] = [];
+    const { run } = buildScoped(dir, agentCalls, {
+      MUSE_CHANNEL_ALLOWED_CHATS: "telegram:-100999",
+      MUSE_CHANNEL_GROUP_ENABLED: "true"
+    });
+
+    const reply = await run({
+      addressedToBot: true,
+      messages: [{ content: "@gezyt_bot what can you do?", role: "user" }],
+      providerId: "telegram",
+      scope: "shared",
+      source: "-100999"
+    });
+    expect(reply).toContain("answer");
+    expect(agentCalls).toHaveLength(1);
+  });
+
   it("a refused risky tool in shared scope leaves NO pending-approval entry (the group 'yes' re-run path is impossible), but is still logged", async () => {
     const dir = mkdtempSync(join(tmpdir(), "muse-scope-"));
     const registry = new MessagingProviderRegistry([

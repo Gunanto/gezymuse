@@ -80,6 +80,50 @@ describe("TelegramProvider scope stamping", () => {
     expect(inbound[0]?.threadId).toBe("18873");
   });
 
+  it("marks only a mention or reply to this bot as addressed in a group", async () => {
+    const provider = new TelegramProvider({
+      botUsername: "gezyt_bot",
+      fetch: async () =>
+        fakeJsonResponse({
+          ok: true,
+          result: [
+            {
+              message: {
+                chat: { id: -100123, type: "supergroup" },
+                date: 1700000000,
+                entities: [{ length: 10, offset: 0, type: "mention" }],
+                message_id: 23,
+                text: "@gezyt_bot help"
+              },
+              update_id: 23
+            },
+            {
+              message: {
+                chat: { id: -100123, type: "supergroup" },
+                date: 1700000000,
+                message_id: 24,
+                reply_to_message: { from: { is_bot: true, username: "gezyt_bot" } },
+                text: "replying to you"
+              },
+              update_id: 24
+            },
+            {
+              message: {
+                chat: { id: -100123, type: "supergroup" },
+                date: 1700000000,
+                message_id: 25,
+                text: "ordinary group chatter"
+              },
+              update_id: 25
+            }
+          ]
+        }),
+      token: "TOKEN"
+    });
+    const inbound = await provider.fetchInbound();
+    expect(inbound.map((message) => message.addressedToBot)).toEqual([true, true, false]);
+  });
+
   it("trusts an explicit chat.type over the id sign when both are present", async () => {
     const provider = new TelegramProvider({
       fetch: async () =>

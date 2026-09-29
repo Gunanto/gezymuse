@@ -14,6 +14,8 @@ export interface InboundAgentRunner {
     readonly providerId: string;
     /** Telegram Forum topic (or another provider-native thread) identifier. */
     readonly threadId?: string;
+    /** Provider-detected explicit bot mention/reply, when available. */
+    readonly addressedToBot?: boolean;
     /**
      * Conversation-scope hint carried straight through from
      * `InboundMessage.scope` (see `conversation-scope.ts`). Threaded
@@ -100,6 +102,14 @@ export async function respondToInbound(
     if (already.has(key) || handled.includes(key)) {
       continue;
     }
+    // Telegram group messages are ingested so the cursor can advance, but
+    // only an explicit mention/reply should reach the agent. A false value
+    // is provider-authenticated metadata; direct messages are never marked
+    // false by this gate because their addressability is implicit.
+    if (message.scope === "shared" && message.addressedToBot === false) {
+      handled.push(key);
+      continue;
+    }
     let typingTimer: ReturnType<typeof setInterval> | undefined;
     try {
       // "typing…" presence while the agent composes — cosmetic, so a
@@ -125,6 +135,7 @@ export async function respondToInbound(
           source: message.source,
           text: message.text,
           ...(message.threadId ? { threadId: message.threadId } : {}),
+          ...(message.addressedToBot !== undefined ? { addressedToBot: message.addressedToBot } : {}),
           // An already-DELIVERED ack for this key gets no notify seam at
           // all — the runner then sees `notify === undefined` and never
           // composes or sends a second one on a retried run.

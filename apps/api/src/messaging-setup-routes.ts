@@ -61,6 +61,7 @@ export interface MessagingSetupGate {
   readonly authService?: ServerOptions["authService"];
   readonly registry: MessagingProviderRegistry;
   readonly integrationEnv: ResolvedIntegrationEnvironment;
+  readonly telegramBotUsername?: string;
   /** Injectable for tests; defaults to the live per-provider identity check. */
   readonly verifyToken?: (
     providerId: string,
@@ -79,11 +80,12 @@ function buildProvider(
   id: ConnectableProvider["id"],
   token: string,
   paths: ResolvedMessagingProviderEnvironment,
-  homeserverUrl?: string
+  homeserverUrl?: string,
+  botUsername?: string
 ): MessagingProvider {
   switch (id) {
     case "telegram":
-      return new TelegramProvider({ inboxFile: paths.inboxFile, offsetFile: paths.pollCursorFile, token });
+      return new TelegramProvider({ botUsername, inboxFile: paths.inboxFile, offsetFile: paths.pollCursorFile, token });
     case "discord":
       return new DiscordProvider({ afterFile: paths.pollCursorFile, inboxFile: paths.inboxFile, token });
     case "slack":
@@ -187,7 +189,13 @@ export function registerMessagingSetupRoutes(server: FastifyInstance, gate: Mess
     }
     const store = new FileMessagingCredentialStore(gate.integrationEnv.messaging.credentialsFile);
     await store.save(provider.id, { token, ...(provider.requiresHomeserverUrl ? { homeserverUrl } : {}) });
-    gate.registry.register(buildProvider(provider.id, token, pathsFor(gate.integrationEnv, provider.id), provider.requiresHomeserverUrl ? homeserverUrl : undefined));
+    gate.registry.register(buildProvider(
+      provider.id,
+      token,
+      pathsFor(gate.integrationEnv, provider.id),
+      provider.requiresHomeserverUrl ? homeserverUrl : undefined,
+      gate.telegramBotUsername
+    ));
     gate.onConnected?.(provider.id);
     return { ok: true, ...(verdict.account ? { account: verdict.account } : {}) };
   });

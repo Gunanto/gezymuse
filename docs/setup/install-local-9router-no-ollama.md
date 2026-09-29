@@ -337,6 +337,7 @@ basic chat and web smoke tests first.
    ```bash
    MUSE_TELEGRAM_POLL_ENABLED=true
    MUSE_INBOUND_REPLY_ENABLED=true
+   MUSE_TELEGRAM_BOT_USERNAME=gezyt_bot
    ```
 
    For a Telegram group, enable the group explicitly and allow only its exact
@@ -350,7 +351,9 @@ basic chat and web smoke tests first.
    Telegram Forum messages carry a topic ID; this revision preserves that ID
    so Muse sends the acknowledgement and final answer back into the same
    topic. A group remains shared context and never becomes the private owner
-   chat.
+   chat. In that group Muse stays silent unless the message mentions
+   `@gezyt_bot` or replies to a bot message. Private Telegram DMs do not need
+   a mention or reply.
 
 5. Reload the file and restart `muse serve`:
 

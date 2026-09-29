@@ -620,6 +620,7 @@ Total: **665** variables.
 | `MUSE_TASK_MEMORY_RETENTION_MS` | packages/autoconfigure |
 | `MUSE_TELEGRAM_ACK_REACTION` | apps/api |
 | `MUSE_TELEGRAM_BOT_TOKEN` | apps/cli, packages/autoconfigure, packages/domain-tools, packages/prompts |
+| `MUSE_TELEGRAM_BOT_USERNAME` | apps/api, packages/autoconfigure |
 | `MUSE_TELEGRAM_INBOX_FILE` | packages/autoconfigure |
 | `MUSE_TELEGRAM_INBOX_INJECTION_CURSOR_FILE` | packages/autoconfigure |
 | `MUSE_TELEGRAM_LONG_POLL_SECONDS` | apps/api |

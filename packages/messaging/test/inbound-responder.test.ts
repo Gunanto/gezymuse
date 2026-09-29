@@ -199,6 +199,29 @@ describe("respondToInbound", () => {
     ]);
   });
 
+  it("silently consumes an unaddressed shared message without running the agent", async () => {
+    const { provider, sent } = makeProvider("telegram");
+    const registry = new MessagingProviderRegistry([provider]);
+    let runs = 0;
+    const runner: InboundAgentRunner = {
+      run: async () => {
+        runs += 1;
+        return "should not run";
+      }
+    };
+
+    const result = await respondToInbound({
+      messages: [inbound({ addressedToBot: false, messageId: "unaddressed", scope: "shared", text: "ordinary chatter" })],
+      registry,
+      runner
+    });
+
+    expect(runs).toBe(0);
+    expect(sent).toEqual([]);
+    expect(result.handled).toEqual(["telegram:unaddressed"]);
+    expect(result.replied).toBe(0);
+  });
+
   it("swallows a notify send failure — the final answer still delivers and the message is still marked handled", async () => {
     const sent: OutboundMessage[] = [];
     const provider: MessagingProvider = {

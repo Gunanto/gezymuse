@@ -129,4 +129,20 @@ describe("createThreadedInboundRunner — multi-turn inbound retains context", (
       { content: "topic A again", role: "user" }
     ]);
   });
+
+  it("threads the addressed-to-bot signal into the wrapped run", async () => {
+    const seen: (boolean | undefined)[] = [];
+    const runner = createThreadedInboundRunner({
+      run: async ({ addressedToBot }) => {
+        seen.push(addressedToBot);
+        return "ok";
+      },
+      store: memoryThreadedTurnStore()
+    });
+
+    await runner.run({ addressedToBot: true, providerId: "telegram", source: "chat-1", text: "@bot hi" });
+    await runner.run({ addressedToBot: false, providerId: "telegram", source: "chat-1", text: "ordinary" });
+
+    expect(seen).toEqual([true, false]);
+  });
 });

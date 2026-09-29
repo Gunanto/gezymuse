@@ -107,6 +107,12 @@ export interface InboundMessage {
    */
   readonly threadId?: string;
   /**
+   * Whether a provider determined that this message explicitly addressed
+   * the bot (for example, a Telegram mention or reply to the bot). This is
+   * intentionally optional because most providers do not expose that signal.
+   */
+  readonly addressedToBot?: boolean;
+  /**
    * Conversation-scope hint the provider stamped when the payload made it
    * determinable ("direct" = 1:1 DM, "shared" = group/channel with other
    * humans present). Absent when the provider's fetch shape can't tell

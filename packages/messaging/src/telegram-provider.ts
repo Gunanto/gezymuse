@@ -20,6 +20,8 @@ export interface TelegramProviderOptions {
    * on the URL is added by the provider; pass the raw token only.
    */
   readonly token: string;
+  /** BotFather username without or with a leading `@`, used for group gating. */
+  readonly botUsername?: string;
   readonly fetch?: typeof globalThis.fetch;
   /** Override for tests / custom self-hosted Bot API. */
   readonly baseUrl?: string;
@@ -84,7 +86,22 @@ interface TelegramMessageObject {
   readonly date: number;
   readonly text?: string;
   readonly chat: { readonly id: number; readonly username?: string; readonly title?: string; readonly type?: string };
-  readonly from?: { readonly username?: string; readonly first_name?: string };
+  readonly entities?: readonly TelegramMessageEntity[];
+  readonly from?: TelegramUser;
+  readonly reply_to_message?: { readonly from?: TelegramUser };
+}
+
+interface TelegramMessageEntity {
+  readonly length?: number;
+  readonly offset?: number;
+  readonly type?: string;
+}
+
+interface TelegramUser {
+  readonly first_name?: string;
+  readonly id?: number;
+  readonly is_bot?: boolean;
+  readonly username?: string;
 }
 
 /**
@@ -110,6 +127,7 @@ interface TelegramGetUpdatesResponse {
 export class TelegramProvider implements MessagingProvider {
   readonly id = "telegram";
   private readonly token: string;
+  private readonly botUsername: string | undefined;
   private readonly fetchImpl: typeof globalThis.fetch;
   private readonly baseUrl: string;
   private readonly parseMode: TelegramProviderOptions["parseMode"];
@@ -119,6 +137,7 @@ export class TelegramProvider implements MessagingProvider {
 
   constructor(options: TelegramProviderOptions) {
     this.token = options.token;
+    this.botUsername = normalizeTelegramUsername(options.botUsername);
     this.fetchImpl = options.fetch ?? globalThis.fetch;
     this.baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
     this.parseMode = options.parseMode;
@@ -228,6 +247,9 @@ export class TelegramProvider implements MessagingProvider {
         ...(senderName ? { sender: senderName } : {}),
         source: String(message.chat.id),
         text: message.text,
+        ...(telegramMessageAddressesBot(message, this.botUsername) !== undefined
+          ? { addressedToBot: telegramMessageAddressesBot(message, this.botUsername) }
+          : {}),
         ...(telegramThreadId(message.message_thread_id) !== undefined
           ? { threadId: String(telegramThreadId(message.message_thread_id)) }
           : {})
@@ -426,6 +448,22 @@ function telegramMessageFromUpdate(value: unknown): TelegramMessageObject | unde
   const from = isRecord(candidate["from"]) ? candidate["from"] : undefined;
   const rawMessageId = candidate["message_id"];
   const rawThreadId = candidate["message_thread_id"];
+  const rawEntities = candidate["entities"];
+  const entities = Array.isArray(rawEntities)
+    ? rawEntities.flatMap((entry): readonly TelegramMessageEntity[] => {
+        if (!isRecord(entry)) return [];
+        const type = entry["type"];
+        const offset = entry["offset"];
+        const length = entry["length"];
+        return typeof type === "string" && typeof offset === "number" && Number.isSafeInteger(offset)
+          && typeof length === "number" && Number.isSafeInteger(length) && offset >= 0 && length > 0
+          ? [{ length, offset, type }]
+          : [];
+      })
+    : [];
+  const replyTo = isRecord(candidate["reply_to_message"]) ? candidate["reply_to_message"] : undefined;
+  const replyFrom = replyTo && isRecord(replyTo["from"]) ? telegramUserFromRecord(replyTo["from"]) : undefined;
+  const parsedFrom = from ? telegramUserFromRecord(from) : undefined;
   return {
     ...(typeof rawMessageId === "number" ? { message_id: rawMessageId } : {}),
     ...(typeof rawThreadId === "number" ? { message_thread_id: rawThreadId } : {}),
@@ -435,14 +473,42 @@ function telegramMessageFromUpdate(value: unknown): TelegramMessageObject | unde
       ...(typeof chat["username"] === "string" ? { username: chat["username"] } : {})
     },
     date,
-    ...(from && (typeof from["first_name"] === "string" || typeof from["username"] === "string") ? {
-      from: {
-        ...(typeof from["first_name"] === "string" ? { first_name: from["first_name"] } : {}),
-        ...(typeof from["username"] === "string" ? { username: from["username"] } : {})
-      }
-    } : {}),
+    ...(entities.length > 0 ? { entities } : {}),
+    ...(parsedFrom ? { from: parsedFrom } : {}),
+    ...(replyFrom ? { reply_to_message: { from: replyFrom } } : {}),
     text
   };
+}
+
+function telegramUserFromRecord(value: Record<string, unknown>): TelegramUser | undefined {
+  const id = value["id"];
+  const isBot = value["is_bot"];
+  const firstName = value["first_name"];
+  const username = value["username"];
+  const user: TelegramUser = {
+    ...(typeof firstName === "string" ? { first_name: firstName } : {}),
+    ...(typeof id === "number" && Number.isSafeInteger(id) ? { id } : {}),
+    ...(typeof isBot === "boolean" ? { is_bot: isBot } : {}),
+    ...(typeof username === "string" ? { username } : {})
+  };
+  return Object.keys(user).length > 0 ? user : undefined;
+}
+
+function normalizeTelegramUsername(value: string | undefined): string | undefined {
+  const normalized = value?.trim().replace(/^@/u, "").toLowerCase();
+  return normalized && /^[a-z0-9_]{1,32}$/u.test(normalized) ? normalized : undefined;
+}
+
+function telegramMessageAddressesBot(message: TelegramMessageObject, botUsername: string | undefined): boolean | undefined {
+  if (!botUsername || !message.text) return undefined;
+  const mentioned = message.entities?.some((entity) => {
+    if (entity.type !== "mention" || entity.offset === undefined || entity.length === undefined) return false;
+    const mention = message.text?.slice(entity.offset, entity.offset + entity.length);
+    return normalizeTelegramUsername(mention) === botUsername;
+  }) ?? false;
+  const repliedToBot = message.reply_to_message?.from?.is_bot === true
+    && normalizeTelegramUsername(message.reply_to_message.from.username) === botUsername;
+  return mentioned || repliedToBot;
 }
 
 function telegramThreadId(value: unknown): number | undefined {
