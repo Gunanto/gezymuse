@@ -429,7 +429,7 @@ startup method, preferably bound to `127.0.0.1`.
 | Symptom | Likely cause | Action |
 |---|---|---|
 | Installer rejects the checkout | Branch is not `main` or Git status is dirty | Preserve local files in a commit or stash, then rerun the dry run |
-| `pnpm bin --global` or global link fails | pnpm global bin is not configured | Run `pnpm setup`, open a new terminal, and retry |
+| `pnpm setup` or global link fails | pnpm global bin is not configured | Run `pnpm setup`, open a new terminal, and retry |
 | `401 Unauthorized` from `/v1/models` or Muse | Wrong, missing or revoked 9Router key | Create/copy a valid key in the dashboard, then rerun encrypted `muse setup model` |
 | `404` for chat completions | Base URL is wrong | Use exactly `http://127.0.0.1:20128/v1`; Muse appends `/chat/completions` |
 | Unknown model or model not found | Wrong prefix or stale 9Router model ID | Query `/v1/models` and set `MUSE_MODEL=openai-compatible/<exact-id>` |
