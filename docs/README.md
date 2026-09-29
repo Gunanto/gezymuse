@@ -76,6 +76,7 @@ as soon as you can answer the question you came for.
 | Document | What |
 |---|---|
 | **[setup-local-llm.md](setup/setup-local-llm.md)** | Installation guide for running Muse on a local LLM (Ollama etc.) |
+| **[install-local-9router-no-ollama.md](setup/install-local-9router-no-ollama.md)** | Laptop-specific installation through 9Router, without Ollama, including optional Telegram setup |
 | **[guides/remote-access.md](setup/remote-access.md)** | `muse remote enable` — open the Muse web UI from your phone via Tailscale (tailnet-only) |
 
 ## Deeper — design notes
