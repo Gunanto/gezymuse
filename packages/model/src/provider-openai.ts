@@ -25,17 +25,84 @@ import {
 } from "./provider-shared.js";
 import { parseOpenAIToolCalls, parseOpenAIUsage, parseToolArguments, readOpenAIContent } from "./provider-openai-parse.js";
 
-export function toOpenAIChatRequest(request: ModelRequest, defaultModel: string | undefined) {
+const OPENAI_TOOL_NAME = /^[a-zA-Z0-9_-]{1,64}$/u;
+
+export interface OpenAIToolNameCodec {
+  readonly fromWire: (name: string) => string;
+  readonly toWire: (name: string) => string;
+}
+
+/**
+ * OpenAI-compatible gateways commonly enforce the function-name grammar
+ * `[a-zA-Z0-9_-]{1,64}`. Muse intentionally uses dotted names such as
+ * `muse.tasks`, so translate only the incompatible names at this provider
+ * boundary and keep a request-local reverse map for returned tool calls.
+ */
+export function createOpenAIToolNameCodec(request: Pick<ModelRequest, "messages" | "tools">): OpenAIToolNameCodec {
+  const names = new Set<string>();
+  for (const tool of request.tools ?? []) names.add(tool.name);
+  for (const message of request.messages) {
+    for (const toolCall of message.toolCalls ?? []) names.add(toolCall.name);
+  }
+
+  const originalToWire = new Map<string, string>();
+  const wireToOriginal = new Map<string, string>();
+
+  // Reserve valid names first so an alias can never shadow a real tool.
+  for (const name of names) {
+    if (OPENAI_TOOL_NAME.test(name)) {
+      originalToWire.set(name, name);
+      wireToOriginal.set(name, name);
+    }
+  }
+
+  for (const name of names) {
+    if (originalToWire.has(name)) continue;
+
+    const readable = name.replace(/[^a-zA-Z0-9_-]+/gu, "_").replace(/^_+|_+$/gu, "").slice(0, 36) || "tool";
+    const base = `muse_tool_${readable}_${fnv1a64(name)}`;
+    let wireName = base;
+    let attempt = 2;
+    while (wireToOriginal.has(wireName)) {
+      const suffix = `_${attempt}`;
+      wireName = `${base.slice(0, 64 - suffix.length)}${suffix}`;
+      attempt += 1;
+    }
+
+    originalToWire.set(name, wireName);
+    wireToOriginal.set(wireName, name);
+  }
+
+  return {
+    fromWire: (name) => wireToOriginal.get(name) ?? name,
+    toWire: (name) => originalToWire.get(name) ?? name
+  };
+}
+
+function fnv1a64(value: string): string {
+  let hash = 0xcbf29ce484222325n;
+  for (const byte of new TextEncoder().encode(value)) {
+    hash ^= BigInt(byte);
+    hash = BigInt.asUintN(64, hash * 0x100000001b3n);
+  }
+  return hash.toString(16).padStart(16, "0");
+}
+
+export function toOpenAIChatRequest(
+  request: ModelRequest,
+  defaultModel: string | undefined,
+  toWireToolName: (name: string) => string = (name) => name
+) {
   const modelId = parseModelName(request.model || defaultModel || "").modelId;
   return {
     max_tokens: request.maxOutputTokens,
-    messages: request.messages.map(toOpenAIMessage),
+    messages: request.messages.map((message) => toOpenAIMessage(message, toWireToolName)),
     model: modelId,
     temperature: request.temperature,
     tools: request.tools?.map((tool) => ({
       function: {
         description: tool.description,
-        name: tool.name,
+        name: toWireToolName(tool.name),
         parameters: tool.inputSchema
       },
       type: "function"
@@ -52,7 +119,7 @@ export function toOpenAIChatRequest(request: ModelRequest, defaultModel: string 
   };
 }
 
-function toOpenAIMessage(message: ModelMessage) {
+function toOpenAIMessage(message: ModelMessage, toWireToolName: (name: string) => string) {
   if (message.role === "assistant" && message.toolCalls && message.toolCalls.length > 0) {
     return {
       content: message.content,
@@ -60,7 +127,7 @@ function toOpenAIMessage(message: ModelMessage) {
       tool_calls: message.toolCalls.map((toolCall) => ({
         function: {
           arguments: JSON.stringify(toolCall.arguments),
-          name: toolCall.name
+          name: toWireToolName(toolCall.name)
         },
         id: toolCall.id,
         type: "function"
@@ -108,7 +175,12 @@ function toOpenAIMessage(message: ModelMessage) {
   };
 }
 
-export function fromOpenAIChatResponse(providerId: string, requestedModel: string, payload: unknown): ModelResponse {
+export function fromOpenAIChatResponse(
+  providerId: string,
+  requestedModel: string,
+  payload: unknown,
+  fromWireToolName: (name: string) => string = (name) => name
+): ModelResponse {
   if (!isRecord(payload)) {
     throw new ModelProviderError(providerId, "OpenAI-compatible response was not an object");
   }
@@ -122,7 +194,7 @@ export function fromOpenAIChatResponse(providerId: string, requestedModel: strin
     model: typeof payload.model === "string" ? payload.model : requestedModel,
     output,
     raw: payload,
-    toolCalls: parseOpenAIToolCalls(message?.tool_calls),
+    toolCalls: parseOpenAIToolCalls(message?.tool_calls, fromWireToolName),
     usage: parseOpenAIUsage(payload.usage)
   };
 }
@@ -130,7 +202,8 @@ export function fromOpenAIChatResponse(providerId: string, requestedModel: strin
 export async function* parseOpenAIStream(
   providerId: string,
   requestedModel: string,
-  body: ReadableStream<Uint8Array>
+  body: ReadableStream<Uint8Array>,
+  fromWireToolName: (name: string) => string = (name) => name
 ): AsyncIterable<ModelEvent> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -213,7 +286,7 @@ export async function* parseOpenAIStream(
     if (errored) return;
   }
 
-  const toolCalls = materializeOpenAIStreamToolCalls(streamedToolCalls);
+  const toolCalls = materializeOpenAIStreamToolCalls(streamedToolCalls, fromWireToolName);
 
   for (const toolCall of toolCalls) {
     yield { toolCall, type: "tool-call" };
@@ -306,7 +379,8 @@ function mergeOpenAIStreamToolCall(
 }
 
 function materializeOpenAIStreamToolCalls(
-  source: ReadonlyMap<number, MutableOpenAIStreamToolCall>
+  source: ReadonlyMap<number, MutableOpenAIStreamToolCall>,
+  fromWireToolName: (name: string) => string
 ): readonly ModelToolCall[] {
   return [...source.entries()]
     .sort(([left], [right]) => left - right)
@@ -318,7 +392,7 @@ function materializeOpenAIStreamToolCalls(
       return [{
         arguments: parseToolArguments(value.argumentsText),
         id: value.id ?? `tool_call_${index}`,
-        name: sanitizeToolCallName(value.name)
+        name: fromWireToolName(sanitizeToolCallName(value.name))
       }];
     });
 }

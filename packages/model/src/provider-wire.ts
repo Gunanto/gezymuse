@@ -44,6 +44,7 @@ export {
 } from "./provider-gemini.js";
 
 export {
+  createOpenAIToolNameCodec,
   fromOpenAIChatResponse,
   parseOpenAIStream,
   toOpenAIChatRequest

@@ -455,6 +455,110 @@ describe("OpenAICompatibleProvider", () => {
     });
   });
 
+  it("aliases dotted tool names on the OpenAI wire and restores them in responses and history", async () => {
+    const requestBodies: Record<string, unknown>[] = [];
+    let wireToolName = "";
+    const provider = new OpenAICompatibleProvider({
+      baseUrl: "https://llm.example.test/v1",
+      defaultModel: "gpt-test",
+      fetch: async (_url, init) => {
+        const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        requestBodies.push(body);
+        const tools = body.tools as Array<{ function: { name: string } }>;
+        wireToolName = tools[0]!.function.name;
+        return new Response(JSON.stringify({
+          choices: [{
+            message: {
+              content: "",
+              tool_calls: [{
+                function: { arguments: "{\"status\":\"open\"}", name: wireToolName },
+                id: "call-1"
+              }]
+            }
+          }],
+          id: "chatcmpl-dotted-tool",
+          model: "gpt-test"
+        }));
+      }
+    });
+    const dottedTool = {
+      description: "List tasks",
+      inputSchema: { type: "object" as const },
+      name: "muse.tasks",
+      risk: "read" as const
+    };
+
+    const first = await provider.generate({
+      messages: [{ content: "List tasks", role: "user" }],
+      model: "gpt-test",
+      tools: [dottedTool]
+    });
+    await provider.generate({
+      messages: [
+        { content: "List tasks", role: "user" },
+        { content: "", role: "assistant", toolCalls: first.toolCalls }
+      ],
+      model: "gpt-test",
+      tools: [dottedTool]
+    });
+
+    expect(wireToolName).toMatch(/^[a-zA-Z0-9_-]{1,64}$/u);
+    expect(wireToolName).not.toBe("muse.tasks");
+    expect(first.toolCalls).toMatchObject([{ name: "muse.tasks" }]);
+    expect(requestBodies[1]).toMatchObject({
+      messages: [{ role: "user" }, { role: "assistant", tool_calls: [{ function: { name: wireToolName } }] }],
+      tools: [{ function: { name: wireToolName } }]
+    });
+  });
+
+  it("restores aliased dotted tool names from streamed tool calls", async () => {
+    let wireToolName = "";
+    const provider = new OpenAICompatibleProvider({
+      baseUrl: "https://llm.example.test/v1",
+      defaultModel: "gpt-test",
+      fetch: async (_url, init) => {
+        const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        wireToolName = (body.tools as Array<{ function: { name: string } }>)[0]!.function.name;
+        const payload = JSON.stringify({
+          choices: [{ delta: { tool_calls: [{
+            function: { arguments: "{}", name: wireToolName },
+            id: "call-stream",
+            index: 0
+          }] } }],
+          id: "chunk-dotted-tool",
+          model: "gpt-test"
+        });
+        return new Response(new ReadableStream({
+          start(controller) {
+            const encoder = new TextEncoder();
+            controller.enqueue(encoder.encode(`data: ${payload}\n\ndata: [DONE]\n\n`));
+            controller.close();
+          }
+        }));
+      }
+    });
+    const events = [];
+
+    for await (const event of provider.stream({
+      messages: [{ content: "List tasks", role: "user" }],
+      model: "gpt-test",
+      tools: [{
+        description: "List tasks",
+        inputSchema: { type: "object" },
+        name: "muse.tasks",
+        risk: "read"
+      }]
+    })) {
+      events.push(event);
+    }
+
+    expect(wireToolName).toMatch(/^[a-zA-Z0-9_-]{1,64}$/u);
+    expect(events).toMatchObject([
+      { toolCall: { name: "muse.tasks" }, type: "tool-call" },
+      { response: { toolCalls: [{ name: "muse.tasks" }] }, type: "done" }
+    ]);
+  });
+
   it("merges a configured `headers` option onto every request alongside the bearer authorization (LAN gateway auth, DS-22)", async () => {
     let seenHeaders: Record<string, string> = {};
     const provider = new OpenAICompatibleProvider({

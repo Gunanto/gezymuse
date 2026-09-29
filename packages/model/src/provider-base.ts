@@ -14,6 +14,7 @@
 import { errorMessage, truncateErrorBody, isErrorLike } from "@muse/shared";
 
 import {
+  createOpenAIToolNameCodec,
   defaultRemoteModelCapabilities,
   fromOpenAIChatResponse,
   parseOpenAIStream,
@@ -194,8 +195,9 @@ export class OpenAICompatibleProvider implements ModelProvider {
 
   async generate(request: ModelRequest): Promise<ModelResponse> {
     const signal = modelCallSignal(request.signal);
+    const toolNameCodec = createOpenAIToolNameCodec(request);
     const response = await this.fetchOrThrow(`${this.baseUrl}/chat/completions`, {
-      body: JSON.stringify(toOpenAIChatRequest(request, this.defaultModel)),
+      body: JSON.stringify(toOpenAIChatRequest(request, this.defaultModel, toolNameCodec.toWire)),
       headers: this.requestHeaders(),
       method: "POST",
       ...(signal ? { signal } : {})
@@ -223,15 +225,19 @@ export class OpenAICompatibleProvider implements ModelProvider {
         true
       );
     }
-    return fromOpenAIChatResponse(this.id, request.model, payload);
+    return fromOpenAIChatResponse(this.id, request.model, payload, toolNameCodec.fromWire);
   }
 
   async *stream(request: ModelRequest): AsyncIterable<ModelEvent> {
     let response: Response;
     const signal = modelCallSignal(request.signal, { streaming: true });
+    const toolNameCodec = createOpenAIToolNameCodec(request);
     try {
       response = await this.fetchOrThrow(`${this.baseUrl}/chat/completions`, {
-        body: JSON.stringify({ ...toOpenAIChatRequest(request, this.defaultModel), stream: true }),
+        body: JSON.stringify({
+          ...toOpenAIChatRequest(request, this.defaultModel, toolNameCodec.toWire),
+          stream: true
+        }),
         headers: this.requestHeaders(),
         method: "POST",
         ...(signal ? { signal } : {})
@@ -280,7 +286,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
       return;
     }
 
-    yield* parseOpenAIStream(this.id, request.model, response.body);
+    yield* parseOpenAIStream(this.id, request.model, response.body, toolNameCodec.fromWire);
   }
 
   private async fetchOrThrow(url: string, init: RequestInit, callerSignal?: AbortSignal): Promise<Response> {

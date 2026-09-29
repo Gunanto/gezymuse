@@ -31,7 +31,10 @@ export function readOpenAIContent(value: unknown): string {
   return "";
 }
 
-export function parseOpenAIToolCalls(value: unknown): readonly ModelToolCall[] | undefined {
+export function parseOpenAIToolCalls(
+  value: unknown,
+  fromWireToolName: (name: string) => string = (name) => name
+): readonly ModelToolCall[] | undefined {
   if (!Array.isArray(value) || value.length === 0) {
     return undefined;
   }
@@ -44,7 +47,7 @@ export function parseOpenAIToolCalls(value: unknown): readonly ModelToolCall[] |
     return [{
       arguments: parseToolArguments(entry.function.arguments),
       id: typeof entry.id === "string" ? entry.id : `tool_call_${index}`,
-      name: sanitizeToolCallName(entry.function.name)
+      name: fromWireToolName(sanitizeToolCallName(entry.function.name))
     }];
   });
 }
