@@ -339,6 +339,19 @@ basic chat and web smoke tests first.
    MUSE_INBOUND_REPLY_ENABLED=true
    ```
 
+   For a Telegram group, enable the group explicitly and allow only its exact
+   chat ID. For the configured AI Enthusiasts Hub group, add:
+
+   ```bash
+   MUSE_CHANNEL_GROUP_ENABLED=true
+   MUSE_CHANNEL_ALLOWED_CHATS=telegram:-1003743752144
+   ```
+
+   Telegram Forum messages carry a topic ID; this revision preserves that ID
+   so Muse sends the acknowledgement and final answer back into the same
+   topic. A group remains shared context and never becomes the private owner
+   chat.
+
 5. Reload the file and restart `muse serve`:
 
    ```bash

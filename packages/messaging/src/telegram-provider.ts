@@ -80,6 +80,7 @@ interface TelegramUpdate {
 
 interface TelegramMessageObject {
   readonly message_id?: number;
+  readonly message_thread_id?: number;
   readonly date: number;
   readonly text?: string;
   readonly chat: { readonly id: number; readonly username?: string; readonly title?: string; readonly type?: string };
@@ -226,7 +227,10 @@ export class TelegramProvider implements MessagingProvider {
         scope: telegramChatScope(message.chat),
         ...(senderName ? { sender: senderName } : {}),
         source: String(message.chat.id),
-        text: message.text
+        text: message.text,
+        ...(telegramThreadId(message.message_thread_id) !== undefined
+          ? { threadId: String(telegramThreadId(message.message_thread_id)) }
+          : {})
       }];
     });
   }
@@ -324,6 +328,9 @@ export class TelegramProvider implements MessagingProvider {
         // preview — no click, no approval (EchoLeak/CamoLeak class).
         link_preview_options: { is_disabled: true },
         text: escapeForTelegramParseMode(outboundText, this.parseMode),
+        ...(telegramThreadId(message.threadId) !== undefined
+          ? { message_thread_id: telegramThreadId(message.threadId) }
+          : {}),
         ...(this.parseMode ? { parse_mode: this.parseMode } : {})
       }),
       headers: { "content-type": "application/json" },
@@ -418,8 +425,10 @@ function telegramMessageFromUpdate(value: unknown): TelegramMessageObject | unde
   }
   const from = isRecord(candidate["from"]) ? candidate["from"] : undefined;
   const rawMessageId = candidate["message_id"];
+  const rawThreadId = candidate["message_thread_id"];
   return {
     ...(typeof rawMessageId === "number" ? { message_id: rawMessageId } : {}),
+    ...(typeof rawThreadId === "number" ? { message_thread_id: rawThreadId } : {}),
     chat: {
       id: chatId,
       ...(typeof chat["type"] === "string" ? { type: chat["type"] } : {}),
@@ -434,6 +443,17 @@ function telegramMessageFromUpdate(value: unknown): TelegramMessageObject | unde
     } : {}),
     text
   };
+}
+
+function telegramThreadId(value: unknown): number | undefined {
+  if (typeof value === "number") {
+    return Number.isSafeInteger(value) && value > 0 ? value : undefined;
+  }
+  if (typeof value === "string" && /^\d+$/u.test(value)) {
+    const parsed = Number(value);
+    return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
+  }
+  return undefined;
 }
 
 function telegramEpochSecondsToIso(seconds: number): string | undefined {

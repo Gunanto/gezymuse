@@ -106,4 +106,27 @@ describe("createThreadedInboundRunner — multi-turn inbound retains context", (
       { content: "again", role: "user" }
     ]);
   });
+
+  it("keeps Forum topics on the same chat in separate conversation histories", async () => {
+    const store = memoryThreadedTurnStore();
+    const seen: ThreadTurn[][] = [];
+    const runner = createThreadedInboundRunner({
+      run: async ({ messages }) => {
+        seen.push([...messages]);
+        return `reply-${seen.length.toString()}`;
+      },
+      store
+    });
+
+    await runner.run({ providerId: "telegram", source: "chat-1", text: "topic A", threadId: "10" });
+    await runner.run({ providerId: "telegram", source: "chat-1", text: "topic B", threadId: "20" });
+    await runner.run({ providerId: "telegram", source: "chat-1", text: "topic A again", threadId: "10" });
+
+    expect(seen[1]).toEqual([{ content: "topic B", role: "user" }]);
+    expect(seen[2]).toEqual([
+      { content: "topic A", role: "user" },
+      { content: "reply-1", role: "assistant" },
+      { content: "topic A again", role: "user" }
+    ]);
+  });
 });

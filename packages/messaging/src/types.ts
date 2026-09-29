@@ -37,6 +37,12 @@ export interface OutboundMessage {
   readonly destination: string;
   readonly text: string;
   /**
+   * Optional platform-native thread/topic target. Telegram uses this for
+   * Forum topics (`message_thread_id`); providers that do not support
+   * threaded destinations ignore it.
+   */
+  readonly threadId?: string;
+  /**
    * Internal retry-scoped idempotency key. Delivery coordinators set this once
    * before retrying an otherwise ambiguous write; providers that support
    * idempotency must forward it to their native request identity.
@@ -95,6 +101,11 @@ export interface InboundMessage {
   readonly receivedAtIso: string;
   /** Plain-text body. Rich payloads (entities, media) are reserved for a future iter. */
   readonly text: string;
+  /**
+   * Optional platform-native thread/topic identifier. Telegram populates
+   * this from Forum messages so replies stay in the originating topic.
+   */
+  readonly threadId?: string;
   /**
    * Conversation-scope hint the provider stamped when the payload made it
    * determinable ("direct" = 1:1 DM, "shared" = group/channel with other

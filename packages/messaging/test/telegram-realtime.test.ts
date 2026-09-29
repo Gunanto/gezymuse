@@ -52,6 +52,24 @@ describe("TelegramProvider real-time surface", () => {
     const provider = new TelegramProvider({ baseUrl: "http://tg.test", fetch: fetchImpl, token: "T" });
     await expect(provider.sendTyping("1")).rejects.toThrow(/chat not found/u);
   });
+
+  it("sends a Forum reply to the originating topic", async () => {
+    const calls: { url: string; body: unknown }[] = [];
+    const fetchImpl = (async (url: string | URL, init?: RequestInit) => {
+      calls.push({ body: JSON.parse(String(init?.body)), url: String(url) });
+      return jsonResponse(200, { ok: true, result: { message_id: 99 } });
+    }) as unknown as typeof globalThis.fetch;
+
+    const provider = new TelegramProvider({ baseUrl: "http://tg.test", fetch: fetchImpl, token: "T" });
+    await provider.send({ destination: "-100123", text: "reply", threadId: "18873" });
+
+    expect(calls[0]?.body).toEqual({
+      chat_id: "-100123",
+      link_preview_options: { is_disabled: true },
+      message_thread_id: 18873,
+      text: "reply"
+    });
+  });
 });
 
 describe("TelegramProvider.reactToMessage", () => {

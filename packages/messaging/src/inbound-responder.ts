@@ -12,6 +12,8 @@ export interface InboundAgentRunner {
     readonly text: string;
     readonly source: string;
     readonly providerId: string;
+    /** Telegram Forum topic (or another provider-native thread) identifier. */
+    readonly threadId?: string;
     /**
      * Conversation-scope hint carried straight through from
      * `InboundMessage.scope` (see `conversation-scope.ts`). Threaded
@@ -122,6 +124,7 @@ export async function respondToInbound(
           providerId: message.providerId,
           source: message.source,
           text: message.text,
+          ...(message.threadId ? { threadId: message.threadId } : {}),
           // An already-DELIVERED ack for this key gets no notify seam at
           // all — the runner then sees `notify === undefined` and never
           // composes or sends a second one on a retried run.
@@ -132,7 +135,8 @@ export async function respondToInbound(
                   try {
                     await options.registry.send(message.providerId, {
                       destination: message.source,
-                      text
+                      text,
+                      ...(message.threadId ? { threadId: message.threadId } : {})
                     });
                     if (!acked.includes(key)) {
                       acked.push(key);
@@ -157,7 +161,8 @@ export async function respondToInbound(
       }
       await options.registry.send(message.providerId, {
         destination: message.source,
-        text: reply
+        text: reply,
+        ...(message.threadId ? { threadId: message.threadId } : {})
       });
       // Mark handled ONLY after the reply is actually delivered: a
       // transient send failure (rate limit / network) must be

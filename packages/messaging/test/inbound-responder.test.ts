@@ -177,6 +177,28 @@ describe("respondToInbound", () => {
     expect(result.errors).toEqual([]);
   });
 
+  it("preserves the inbound thread on both ack and final reply", async () => {
+    const { provider, sent } = makeProvider("telegram");
+    const registry = new MessagingProviderRegistry([provider]);
+    const runner: InboundAgentRunner = {
+      run: async ({ notify }) => {
+        await notify?.("ack");
+        return "final";
+      }
+    };
+
+    await respondToInbound({
+      messages: [inbound({ messageId: "topic-1", text: "hello", threadId: "18873" })],
+      registry,
+      runner
+    });
+
+    expect(sent).toEqual([
+      { destination: "chat-1", text: "ack", threadId: "18873" },
+      { destination: "chat-1", text: "final", threadId: "18873" }
+    ]);
+  });
+
   it("swallows a notify send failure — the final answer still delivers and the message is still marked handled", async () => {
     const sent: OutboundMessage[] = [];
     const provider: MessagingProvider = {

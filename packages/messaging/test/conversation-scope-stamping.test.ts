@@ -56,6 +56,30 @@ describe("TelegramProvider scope stamping", () => {
     expect(inbound[0]?.scope).toBe("shared");
   });
 
+  it("preserves a Forum topic id for the reply path", async () => {
+    const provider = new TelegramProvider({
+      fetch: async () =>
+        fakeJsonResponse({
+          ok: true,
+          result: [
+            {
+              message: {
+                chat: { id: -100123, type: "supergroup" },
+                date: 1700000000,
+                message_id: 22,
+                message_thread_id: 18873,
+                text: "question in topic"
+              },
+              update_id: 22
+            }
+          ]
+        }),
+      token: "TOKEN"
+    });
+    const inbound = await provider.fetchInbound();
+    expect(inbound[0]?.threadId).toBe("18873");
+  });
+
   it("trusts an explicit chat.type over the id sign when both are present", async () => {
     const provider = new TelegramProvider({
       fetch: async () =>
