@@ -16,6 +16,8 @@ export interface InboundAgentRunner {
     readonly threadId?: string;
     /** Provider-detected explicit bot mention/reply, when available. */
     readonly addressedToBot?: boolean;
+    /** Provider-detected sender allowlist result, when configured. */
+    readonly senderAllowed?: boolean;
     /**
      * Conversation-scope hint carried straight through from
      * `InboundMessage.scope` (see `conversation-scope.ts`). Threaded
@@ -103,10 +105,14 @@ export async function respondToInbound(
       continue;
     }
     // Telegram group messages are ingested so the cursor can advance, but
-    // only an explicit mention/reply should reach the agent. A false value
-    // is provider-authenticated metadata; direct messages are never marked
-    // false by this gate because their addressability is implicit.
-    if (message.scope === "shared" && message.addressedToBot === false) {
+    // only an explicit mention/reply from an allowlisted sender should reach
+    // the agent. These false values are provider-authenticated metadata;
+    // direct messages are never blocked by this shared-chat gate.
+    if (
+      message.providerId === "telegram"
+      && message.scope === "shared"
+      && (message.addressedToBot !== true || message.senderAllowed !== true)
+    ) {
       handled.push(key);
       continue;
     }
@@ -136,6 +142,7 @@ export async function respondToInbound(
           text: message.text,
           ...(message.threadId ? { threadId: message.threadId } : {}),
           ...(message.addressedToBot !== undefined ? { addressedToBot: message.addressedToBot } : {}),
+          ...(message.senderAllowed !== undefined ? { senderAllowed: message.senderAllowed } : {}),
           // An already-DELIVERED ack for this key gets no notify seam at
           // all — the runner then sees `notify === undefined` and never
           // composes or sends a second one on a retried run.

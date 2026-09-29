@@ -131,18 +131,18 @@ describe("createThreadedInboundRunner — multi-turn inbound retains context", (
   });
 
   it("threads the addressed-to-bot signal into the wrapped run", async () => {
-    const seen: (boolean | undefined)[] = [];
+    const seen: { readonly addressed: boolean | undefined; readonly allowed: boolean | undefined }[] = [];
     const runner = createThreadedInboundRunner({
-      run: async ({ addressedToBot }) => {
-        seen.push(addressedToBot);
+      run: async ({ addressedToBot, senderAllowed }) => {
+        seen.push({ addressed: addressedToBot, allowed: senderAllowed });
         return "ok";
       },
       store: memoryThreadedTurnStore()
     });
 
-    await runner.run({ addressedToBot: true, providerId: "telegram", source: "chat-1", text: "@bot hi" });
-    await runner.run({ addressedToBot: false, providerId: "telegram", source: "chat-1", text: "ordinary" });
+    await runner.run({ addressedToBot: true, providerId: "telegram", senderAllowed: true, source: "chat-1", text: "@bot hi" });
+    await runner.run({ addressedToBot: false, providerId: "telegram", senderAllowed: false, source: "chat-1", text: "ordinary" });
 
-    expect(seen).toEqual([true, false]);
+    expect(seen).toEqual([{ addressed: true, allowed: true }, { addressed: false, allowed: false }]);
   });
 });

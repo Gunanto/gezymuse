@@ -62,6 +62,7 @@ export interface MessagingSetupGate {
   readonly registry: MessagingProviderRegistry;
   readonly integrationEnv: ResolvedIntegrationEnvironment;
   readonly telegramBotUsername?: string;
+  readonly telegramAllowedUserIds?: string;
   /** Injectable for tests; defaults to the live per-provider identity check. */
   readonly verifyToken?: (
     providerId: string,
@@ -81,11 +82,12 @@ function buildProvider(
   token: string,
   paths: ResolvedMessagingProviderEnvironment,
   homeserverUrl?: string,
-  botUsername?: string
+  botUsername?: string,
+  allowedUserIds?: string
 ): MessagingProvider {
   switch (id) {
     case "telegram":
-      return new TelegramProvider({ botUsername, inboxFile: paths.inboxFile, offsetFile: paths.pollCursorFile, token });
+      return new TelegramProvider({ allowedSenderIds: allowedUserIds, botUsername, inboxFile: paths.inboxFile, offsetFile: paths.pollCursorFile, token });
     case "discord":
       return new DiscordProvider({ afterFile: paths.pollCursorFile, inboxFile: paths.inboxFile, token });
     case "slack":
@@ -194,7 +196,8 @@ export function registerMessagingSetupRoutes(server: FastifyInstance, gate: Mess
       token,
       pathsFor(gate.integrationEnv, provider.id),
       provider.requiresHomeserverUrl ? homeserverUrl : undefined,
-      gate.telegramBotUsername
+      gate.telegramBotUsername,
+      gate.telegramAllowedUserIds
     ));
     gate.onConnected?.(provider.id);
     return { ok: true, ...(verdict.account ? { account: verdict.account } : {}) };

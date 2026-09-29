@@ -22,6 +22,8 @@ export interface TelegramProviderOptions {
   readonly token: string;
   /** BotFather username without or with a leading `@`, used for group gating. */
   readonly botUsername?: string;
+  /** Comma-separated Telegram user IDs allowed to use shared chats. */
+  readonly allowedSenderIds?: string;
   readonly fetch?: typeof globalThis.fetch;
   /** Override for tests / custom self-hosted Bot API. */
   readonly baseUrl?: string;
@@ -128,6 +130,7 @@ export class TelegramProvider implements MessagingProvider {
   readonly id = "telegram";
   private readonly token: string;
   private readonly botUsername: string | undefined;
+  private readonly allowedSenderIds: ReadonlySet<string> | undefined;
   private readonly fetchImpl: typeof globalThis.fetch;
   private readonly baseUrl: string;
   private readonly parseMode: TelegramProviderOptions["parseMode"];
@@ -138,6 +141,7 @@ export class TelegramProvider implements MessagingProvider {
   constructor(options: TelegramProviderOptions) {
     this.token = options.token;
     this.botUsername = normalizeTelegramUsername(options.botUsername);
+    this.allowedSenderIds = parseTelegramSenderIds(options.allowedSenderIds);
     this.fetchImpl = options.fetch ?? globalThis.fetch;
     this.baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
     this.parseMode = options.parseMode;
@@ -238,6 +242,7 @@ export class TelegramProvider implements MessagingProvider {
       }
       const senderUsername = message.from?.username;
       const senderName = senderUsername ?? message.from?.first_name ?? message.chat.username;
+      const senderId = telegramUserId(message.from?.id);
       return [{
         messageId: String(messageId),
         providerId: this.id,
@@ -245,10 +250,14 @@ export class TelegramProvider implements MessagingProvider {
         receivedAtIso,
         scope: telegramChatScope(message.chat),
         ...(senderName ? { sender: senderName } : {}),
+        ...(senderId ? { senderId } : {}),
         source: String(message.chat.id),
         text: message.text,
         ...(telegramMessageAddressesBot(message, this.botUsername) !== undefined
           ? { addressedToBot: telegramMessageAddressesBot(message, this.botUsername) }
+          : {}),
+        ...(this.allowedSenderIds !== undefined && senderId !== undefined
+          ? { senderAllowed: this.allowedSenderIds.has(senderId) }
           : {}),
         ...(telegramThreadId(message.message_thread_id) !== undefined
           ? { threadId: String(telegramThreadId(message.message_thread_id)) }
@@ -497,6 +506,19 @@ function telegramUserFromRecord(value: Record<string, unknown>): TelegramUser | 
 function normalizeTelegramUsername(value: string | undefined): string | undefined {
   const normalized = value?.trim().replace(/^@/u, "").toLowerCase();
   return normalized && /^[a-z0-9_]{1,32}$/u.test(normalized) ? normalized : undefined;
+}
+
+function parseTelegramSenderIds(value: string | undefined): ReadonlySet<string> | undefined {
+  if (value === undefined) return undefined;
+  const ids = value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => /^\d+$/u.test(entry));
+  return new Set(ids);
+}
+
+function telegramUserId(value: number | undefined): string | undefined {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? String(value) : undefined;
 }
 
 function telegramMessageAddressesBot(message: TelegramMessageObject, botUsername: string | undefined): boolean | undefined {

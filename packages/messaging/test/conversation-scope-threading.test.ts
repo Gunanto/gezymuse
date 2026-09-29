@@ -51,7 +51,7 @@ describe("respondToInbound threads scope into the runner", () => {
     await respondToInbound({
       messages: [
         inbound({ messageId: "m1", scope: "direct", text: "hi" }),
-        inbound({ messageId: "m2", scope: "shared", text: "hi all" }),
+        inbound({ addressedToBot: true, messageId: "m2", scope: "shared", senderAllowed: true, text: "hi all" }),
         inbound({ messageId: "m3", text: "no scope stamped" })
       ],
       registry,

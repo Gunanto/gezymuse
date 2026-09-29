@@ -516,6 +516,7 @@ describe("createInboundAgentRun conversation-scope: shared (group) chat safety",
 
     const reply = await run({
       addressedToBot: true,
+      senderAllowed: true,
       messages: [{ content: "@gezyt_bot what can you do?", role: "user" }],
       providerId: "telegram",
       scope: "shared",
@@ -523,6 +524,25 @@ describe("createInboundAgentRun conversation-scope: shared (group) chat safety",
     });
     expect(reply).toContain("answer");
     expect(agentCalls).toHaveLength(1);
+  });
+
+  it("keeps an addressed Telegram group silent when the sender is not allowlisted", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "muse-telegram-sender-"));
+    const agentCalls: { readonly metadata: { readonly userId: string } }[] = [];
+    const { run } = buildScoped(dir, agentCalls, {
+      MUSE_CHANNEL_ALLOWED_CHATS: "telegram:-100999",
+      MUSE_CHANNEL_GROUP_ENABLED: "true"
+    });
+    const reply = await run({
+      addressedToBot: true,
+      senderAllowed: false,
+      messages: [{ content: "@gezyt_bot no", role: "user" }],
+      providerId: "telegram",
+      scope: "shared",
+      source: "-100999"
+    });
+    expect(reply).toBe("");
+    expect(agentCalls).toHaveLength(0);
   });
 
   it("a refused risky tool in shared scope leaves NO pending-approval entry (the group 'yes' re-run path is impossible), but is still logged", async () => {

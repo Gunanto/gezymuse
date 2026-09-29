@@ -332,12 +332,13 @@ basic chat and web smoke tests first.
 
 3. Select **Telegram** and enter the token at the hidden prompt. Because
    `MUSE_CREDENTIALS_ENCRYPT=true` is loaded, the messaging credential store is encrypted at rest.
-4. Add these two non-secret settings to `~/.config/muse/9router.env`:
+4. Add these non-secret settings to `~/.config/muse/9router.env`:
 
    ```bash
    MUSE_TELEGRAM_POLL_ENABLED=true
    MUSE_INBOUND_REPLY_ENABLED=true
    MUSE_TELEGRAM_BOT_USERNAME=gezyt_bot
+   MUSE_TELEGRAM_ALLOWED_USER_IDS=6468143001
    ```
 
    For a Telegram group, enable the group explicitly and allow only its exact
@@ -353,7 +354,9 @@ basic chat and web smoke tests first.
    topic. A group remains shared context and never becomes the private owner
    chat. In that group Muse stays silent unless the message mentions
    `@gezyt_bot` or replies to a bot message. Private Telegram DMs do not need
-   a mention or reply.
+   a mention or reply. `MUSE_TELEGRAM_ALLOWED_USER_IDS` is the numeric Telegram
+   user ID from the paired owner account. In a shared chat, messages from any
+   other account are consumed silently even when they mention or reply to the bot.
 
 5. Reload the file and restart `muse serve`:
 

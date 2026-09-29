@@ -97,6 +97,8 @@ export interface InboundMessage {
   readonly source: string;
   /** Sender display label when the platform exposes one (Telegram username, etc.). */
   readonly sender?: string;
+  /** Stable provider-native sender identity when the platform exposes one. */
+  readonly senderId?: string;
   /** ISO-8601 timestamp; provider-supplied when available, otherwise synthesised. */
   readonly receivedAtIso: string;
   /** Plain-text body. Rich payloads (entities, media) are reserved for a future iter. */
@@ -112,6 +114,8 @@ export interface InboundMessage {
    * intentionally optional because most providers do not expose that signal.
    */
   readonly addressedToBot?: boolean;
+  /** Whether the configured channel policy allows this sender. */
+  readonly senderAllowed?: boolean;
   /**
    * Conversation-scope hint the provider stamped when the payload made it
    * determinable ("direct" = 1:1 DM, "shared" = group/channel with other

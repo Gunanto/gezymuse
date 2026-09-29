@@ -222,6 +222,36 @@ describe("respondToInbound", () => {
     expect(result.replied).toBe(0);
   });
 
+  it("silently consumes an addressed shared message from a disallowed sender", async () => {
+    const { provider, sent } = makeProvider("telegram");
+    const registry = new MessagingProviderRegistry([provider]);
+    let runs = 0;
+    const result = await respondToInbound({
+      messages: [inbound({ addressedToBot: true, messageId: "other", scope: "shared", senderAllowed: false, text: "@bot hello" })],
+      registry,
+      runner: { run: async () => { runs += 1; return "should not run"; } }
+    });
+
+    expect(runs).toBe(0);
+    expect(sent).toEqual([]);
+    expect(result.handled).toEqual(["telegram:other"]);
+    expect(result.replied).toBe(0);
+  });
+
+  it("fails closed when a Telegram shared message has no sender allowlist result", async () => {
+    const { provider, sent } = makeProvider("telegram");
+    const registry = new MessagingProviderRegistry([provider]);
+    let runs = 0;
+    const result = await respondToInbound({
+      messages: [inbound({ addressedToBot: true, messageId: "missing-sender", scope: "shared", text: "@bot hello" })],
+      registry,
+      runner: { run: async () => { runs += 1; return "must not run"; } }
+    });
+    expect(runs).toBe(0);
+    expect(sent).toEqual([]);
+    expect(result.handled).toEqual(["telegram:missing-sender"]);
+  });
+
   it("swallows a notify send failure — the final answer still delivers and the message is still marked handled", async () => {
     const sent: OutboundMessage[] = [];
     const provider: MessagingProvider = {

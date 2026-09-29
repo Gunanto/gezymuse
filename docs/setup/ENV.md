@@ -7,7 +7,7 @@ source. Every `MUSE_*` or `ATTUNEGRAPH_*` referenced in product source
 value contracts are curated incrementally in code (`.claude/rules/` /
 per-module docs); this inventory is the discoverability + drift floor.
 
-Total: **665** variables.
+Total: **667** variables.
 
 | Variable | Read by |
 | --- | --- |
@@ -619,6 +619,7 @@ Total: **665** variables.
 | `MUSE_TASK_MEMORY_PERSIST` | packages/autoconfigure |
 | `MUSE_TASK_MEMORY_RETENTION_MS` | packages/autoconfigure |
 | `MUSE_TELEGRAM_ACK_REACTION` | apps/api |
+| `MUSE_TELEGRAM_ALLOWED_USER_IDS` | apps/api, packages/autoconfigure |
 | `MUSE_TELEGRAM_BOT_TOKEN` | apps/cli, packages/autoconfigure, packages/domain-tools, packages/prompts |
 | `MUSE_TELEGRAM_BOT_USERNAME` | apps/api, packages/autoconfigure |
 | `MUSE_TELEGRAM_INBOX_FILE` | packages/autoconfigure |

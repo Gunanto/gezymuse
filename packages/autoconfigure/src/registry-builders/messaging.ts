@@ -62,6 +62,7 @@ export function buildMessagingRegistry(env: MuseEnvironment): MessagingProviderR
     // daemon appends new messages to the same inbox so the web
     // panel / REST converge on a single store.
     registry.register(new TelegramProvider({
+      allowedSenderIds: env.MUSE_TELEGRAM_ALLOWED_USER_IDS,
       botUsername: env.MUSE_TELEGRAM_BOT_USERNAME,
       inboxFile: resolveTelegramInboxFile(env),
       offsetFile: resolveTelegramOffsetFile(env),

@@ -426,7 +426,7 @@ async function scheduleUserSideFollowups(
 
 export function createInboundAgentRun(options: InboundAgentRunOptions): ThreadedAgentRun {
   const { agentRuntime, composeAck, composeChatReply, conversationStore, env, model, registry, userMemoryStore } = options;
-  return async ({ messages, providerId, source, scope: rawScope, addressedToBot, notify }) => {
+  return async ({ messages, providerId, source, scope: rawScope, addressedToBot, senderAllowed, notify }) => {
     // Conversation-scope capability profile (P7-3, the sequel to TOFU
     // pairing): a group/shared chat gets a STRICTLY narrower posture than
     // a 1:1 — never TOFU-adopted as owner, never the owner's memory scope,
@@ -445,10 +445,10 @@ export function createInboundAgentRun(options: InboundAgentRunOptions): Threaded
       if (!groupAllowed) {
         return UNPAIRED_CHAT_NOTICE;
       }
-      if (providerId === "telegram" && addressedToBot !== true) {
-        // Group chatter must stay silent. Telegram's provider marks this
-        // only when the message mentions this bot or replies to this bot;
-        // direct messages bypass this branch and remain conversational.
+      if (providerId === "telegram" && (addressedToBot !== true || senderAllowed !== true)) {
+        // Group chatter must stay silent. Telegram's provider marks the
+        // message addressed only for a mention/reply and allowed only for a
+        // configured owner ID; direct messages bypass this branch.
         return "";
       }
     } else {
